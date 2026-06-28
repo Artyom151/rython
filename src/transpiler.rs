@@ -1516,30 +1516,107 @@ impl Transpiler {
                 self.transpile_expr(false_expr);
                 self.write(" }");
             }
-            Expr::ListComp(expr, target, ifs) => {
-                self.write("// list comprehension: [");
-                self.transpile_expr(expr);
-                self.write(" for ");
+            Expr::ListComp(expr, target, iter, ifs) => {
+                self.write("Value::List({ let mut __comp = Vec::new(); for ");
                 self.transpile_expr(target);
-                self.write(" in ...]");
-                if ifs.is_empty() {
-                    self.write("Value::List(vec![])");
-                } else {
-                    
-                    self.write("Value::List(vec![])");
+                self.write(" in ");
+                self.transpile_expr(iter);
+                self.write(" { ");
+                if !ifs.is_empty() {
+                    self.write("if ");
+                    for (i, cond) in ifs.iter().enumerate() {
+                        if i > 0 { self.write(" && "); }
+                        self.transpile_expr(cond);
+                        self.write(".to_bool()");
+                    }
+                    self.write(" { ");
                 }
+                self.write("__comp.push(");
+                self.transpile_expr(expr);
+                self.write("); ");
+                if !ifs.is_empty() {
+                    for _ in ifs {
+                        self.write("} ");
+                    }
+                }
+                self.write("} __comp })");
             }
-            Expr::SetComp(expr, target, ifs) => {
-                self.write("// set comprehension");
-                self.write("Value::Set(vec![])");
+            Expr::SetComp(expr, target, iter, ifs) => {
+                self.write("Value::Set({ let mut __comp = Vec::new(); for ");
+                self.transpile_expr(target);
+                self.write(" in ");
+                self.transpile_expr(iter);
+                self.write(" { ");
+                if !ifs.is_empty() {
+                    self.write("if ");
+                    for (i, cond) in ifs.iter().enumerate() {
+                        if i > 0 { self.write(" && "); }
+                        self.transpile_expr(cond);
+                        self.write(".to_bool()");
+                    }
+                    self.write(" { ");
+                }
+                self.write("__comp.push(");
+                self.transpile_expr(expr);
+                self.write("); ");
+                if !ifs.is_empty() {
+                    for _ in ifs {
+                        self.write("} ");
+                    }
+                }
+                self.write("} __comp })");
             }
-            Expr::DictComp(key, val, target, ifs) => {
-                self.write("// dict comprehension");
-                self.write("Value::Dict(BTreeMap::new())");
+            Expr::DictComp(key, val, target, iter, ifs) => {
+                self.write("Value::Dict({ let mut __comp = ::std::collections::BTreeMap::new(); for ");
+                self.transpile_expr(target);
+                self.write(" in ");
+                self.transpile_expr(iter);
+                self.write(" { ");
+                if !ifs.is_empty() {
+                    self.write("if ");
+                    for (i, cond) in ifs.iter().enumerate() {
+                        if i > 0 { self.write(" && "); }
+                        self.transpile_expr(cond);
+                        self.write(".to_bool()");
+                    }
+                    self.write(" { ");
+                }
+                self.write("__comp.insert(");
+                self.transpile_expr(key);
+                self.write(".to_string(), ");
+                self.transpile_expr(val);
+                self.write("); ");
+                if !ifs.is_empty() {
+                    for _ in ifs {
+                        self.write("} ");
+                    }
+                }
+                self.write("} __comp })");
             }
-            Expr::Generator(expr, target, ifs) => {
-                self.write("// generator expression");
-                self.write("Value::None");
+            Expr::Generator(expr, target, iter, ifs) => {
+                self.write("Value::List({ let mut __comp = Vec::new(); for ");
+                self.transpile_expr(target);
+                self.write(" in ");
+                self.transpile_expr(iter);
+                self.write(" { ");
+                if !ifs.is_empty() {
+                    self.write("if ");
+                    for (i, cond) in ifs.iter().enumerate() {
+                        if i > 0 { self.write(" && "); }
+                        self.transpile_expr(cond);
+                        self.write(".to_bool()");
+                    }
+                    self.write(" { ");
+                }
+                self.write("__comp.push(");
+                self.transpile_expr(expr);
+                self.write("); ");
+                if !ifs.is_empty() {
+                    for _ in ifs {
+                        self.write("} ");
+                    }
+                }
+                self.write("} __comp })");
             }
             Expr::Starred(expr) => {
                 self.write("// *");

@@ -1195,16 +1195,16 @@ impl Parser {
                 } else if self.peek_kind() == Some(&TokenKind::For) {
                     
                     self.advance();
-                    let target = self.parse_expr();
+                    let target = self.parse_for_target();
                     self.expect(&TokenKind::In);
-                    let iter = self.parse_expr();
+                    let iter = self.parse_or_expr();
                     let mut ifs = Vec::new();
                     while self.peek_kind() == Some(&TokenKind::If) {
                         self.advance();
-                        ifs.push(Box::new(self.parse_expr()));
+                        ifs.push(Box::new(self.parse_or_expr()));
                     }
                     self.expect(&TokenKind::RParen);
-                    Expr::Generator(Box::new(expr), Box::new(target), ifs)
+                    Expr::Generator(Box::new(expr), Box::new(target), Box::new(iter), ifs)
                 } else {
                     self.expect(&TokenKind::RParen);
                     expr
@@ -1220,16 +1220,16 @@ impl Parser {
                 if self.peek_kind() == Some(&TokenKind::For) {
                     
                     self.advance();
-                    let target = self.parse_expr();
+                    let target = self.parse_for_target();
                     self.expect(&TokenKind::In);
-                    let iter = self.parse_expr();
+                    let iter = self.parse_or_expr();
                     let mut ifs = Vec::new();
                     while self.peek_kind() == Some(&TokenKind::If) {
                         self.advance();
-                        ifs.push(Box::new(self.parse_expr()));
+                        ifs.push(Box::new(self.parse_or_expr()));
                     }
                     self.expect(&TokenKind::RBracket);
-                    Expr::ListComp(Box::new(first), Box::new(target), ifs)
+                    Expr::ListComp(Box::new(first), Box::new(target), Box::new(iter), ifs)
                 } else if self.peek_kind() == Some(&TokenKind::Comma) {
                     self.advance();
                     let mut items = vec![first];
@@ -1304,16 +1304,16 @@ impl Parser {
                 } else if self.peek_kind() == Some(&TokenKind::For) {
                     
                     self.advance();
-                    let target = self.parse_expr();
+                    let target = self.parse_for_target();
                     self.expect(&TokenKind::In);
-                    let iter = self.parse_expr();
+                    let iter = self.parse_or_expr();
                     let mut ifs = Vec::new();
                     while self.peek_kind() == Some(&TokenKind::If) {
                         self.advance();
-                        ifs.push(Box::new(self.parse_expr()));
+                        ifs.push(Box::new(self.parse_or_expr()));
                     }
                     self.expect(&TokenKind::RBrace);
-                    Expr::SetComp(Box::new(first), Box::new(target), ifs)
+                    Expr::SetComp(Box::new(first), Box::new(target), Box::new(iter), ifs)
                 } else {
                     
                     let mut items = vec![first];
