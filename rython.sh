@@ -2,7 +2,7 @@
 set -e
 
 RYTHON_VERSION="0.1.0"
-REPO="anomalco/rython"
+REPO="Artyom151/rython"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
