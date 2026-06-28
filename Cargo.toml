@@ -3,6 +3,9 @@ name = "rython"
 version = "0.1.0"
 edition = "2021"
 description = "Python to Rust transpiler"
+authors = ["Artyom151"]
+license = "MIT"
+repository = "https://github.com/Artyom151/rython"
 default-run = "rython"
 
 [[bin]]
