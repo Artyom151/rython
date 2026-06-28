@@ -1,0 +1,20 @@
+[package]
+name = "rython"
+version = "0.1.0"
+edition = "2021"
+description = "Python to Rust transpiler"
+default-run = "rython"
+
+[[bin]]
+name = "rython"
+path = "src/main.rs"
+
+[[bin]]
+name = "rip"
+path = "src/bin/rip.rs"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+cc = "1.0"

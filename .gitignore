@@ -1,0 +1,16 @@
+/target
+/rython_packages/
+examples/*.rs
+!examples/*.py
+examples/**/app
+.DS_Store
+__pycache__/
+*.pyc
+*.swp
+*.swo
+*~
+*.log
+*.o
+*.so
+app
+app.rs
