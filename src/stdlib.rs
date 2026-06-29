@@ -1,6 +1,41 @@
 
 
 
+pub fn exec_runtime(code: Value) -> Value {
+    let src = format!("{}", code);
+    let tmp_dir = std::env::temp_dir();
+    let tmp_file = tmp_dir.join("rython_runtime_exec.py");
+    let _ = std::fs::write(&tmp_file, &src);
+    let _ = std::process::Command::new("python3")
+        .arg(&tmp_file)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status();
+    let _ = std::fs::remove_file(&tmp_file);
+    Value::None
+}
+
+pub fn eval_runtime(code: Value) -> Value {
+    let src = format!("print({})", code);
+    let tmp_dir = std::env::temp_dir();
+    let tmp_file = tmp_dir.join("rython_runtime_eval.py");
+    let _ = std::fs::write(&tmp_file, &src);
+    let output = std::process::Command::new("python3")
+        .arg(&tmp_file)
+        .output()
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                String::from_utf8(o.stdout).ok()
+            } else {
+                None
+            }
+        })
+        .unwrap_or_default();
+    let _ = std::fs::remove_file(&tmp_file);
+    Value::Str(output.trim().to_string())
+}
+
 pub mod math {
     use super::Value;
 

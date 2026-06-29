@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-RYTHON_VERSION="v0.1.0"
+RYTHON_VERSION="v0.1.1"
 REPO="Artyom151/rython"
 
 RED='\033[0;31m'

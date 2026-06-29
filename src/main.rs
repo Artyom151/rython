@@ -264,7 +264,7 @@ fn transpile_module(module_name: &str, base_dir: &Path, verbose: bool) -> String
 }
 
 fn build_full_source(main_defs: &str, main_stmts: &str, main_filename: &str,
-                     module_defs: &[String], _verbose: bool) -> String {
+                     module_defs: &[String], _verbose: bool, python_source: &str) -> String {
     let runtime_source = include_str!("runtime.rs");
     let stdlib_source = include_str!("stdlib.rs");
     let mut wrappers_source = String::from(include_str!("wrappers.rs"));
@@ -298,7 +298,9 @@ fn build_full_source(main_defs: &str, main_stmts: &str, main_filename: &str,
         out.push_str("\n");
     }
 
-    out.push_str(&format!("// Source: {}\n\n", main_filename));
+    out.push_str(&format!("// Source: {}\n", main_filename));
+    out.push_str(&rython::decompiler::embed_source(python_source));
+    out.push_str("\n");
     out.push_str(main_defs);
     out.push_str("fn main() -> () {\n");
     out.push_str(main_stmts);
@@ -316,6 +318,7 @@ fn print_help() {
     eprintln!("  rython fmt <file.py>          Format Python file");
     eprintln!("  rython repl                   Interactive REPL");
     eprintln!("  rython test <file.py>         Run tests");
+    eprintln!("  rython decompile <binary>      Decompile binary back to Python (experimental)");
     eprintln!("  rython lsp                    LSP server (stdin/stdout)");
     eprintln!("  rython help                   Show this help");
     eprintln!();
@@ -351,16 +354,22 @@ fn cmd_transpile(args: &[String]) {
     let mut tr = rython::transpiler::Transpiler::new();
     let (defs_code, stmts_code) = tr.transpile(&program);
 
-    let full_source = build_full_source(&defs_code, &stmts_code, filename, &module_defs, verbose);
+    let full_source = build_full_source(&defs_code, &stmts_code, filename, &module_defs, verbose, &source);
+    let cache_dir = Path::new(".rython_cache");
+    let _ = fs::create_dir_all(cache_dir);
     let output_path = output_file.clone().unwrap_or_else(|| {
-        Path::new(filename).with_extension("rs").to_string_lossy().to_string()
+        let base = Path::new(filename).file_stem().unwrap_or_default().to_string_lossy();
+        cache_dir.join(format!("{}.rs", base)).to_string_lossy().to_string()
     });
     fs::write(&output_path, &full_source).expect("Failed to write output");
 
     if verbose { eprintln!("Generated: {}", output_path); }
 
     let binary_path = output_file.map(|o| Path::new(&o).with_extension("").to_string_lossy().to_string())
-        .unwrap_or_else(|| Path::new(filename).with_extension("").to_string_lossy().to_string());
+        .unwrap_or_else(|| {
+            let base = Path::new(filename).file_stem().unwrap_or_default().to_string_lossy();
+            cache_dir.join(base.to_string()).to_string_lossy().to_string()
+        });
 
     match compile_rust(&full_source, &binary_path, verbose) {
         Ok(_) => if verbose { eprintln!("Compiled: {}", binary_path); }
@@ -552,6 +561,30 @@ fn main() {{
     if failed > 0 { exit(1); }
 }
 
+fn cmd_decompile(args: &[String]) {
+    if args.is_empty() {
+        eprintln!("Usage: rython decompile <binary> [--output <file.py>]");
+        exit(1);
+    }
+    let binary = &args[0];
+    let output_file = args.iter().position(|a| a == "--output").map(|i| args[i + 1].clone());
+
+    match rython::decompiler::decompile(binary) {
+        Ok(py_source) => {
+            if let Some(path) = output_file {
+                fs::write(&path, &py_source).expect("Failed to write output");
+                eprintln!("Decompiled to: {}", path);
+            } else {
+                println!("{}", py_source);
+            }
+        }
+        Err(e) => {
+            eprintln!("Decompile error: {}", e);
+            exit(1);
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -564,6 +597,7 @@ fn main() {
         "fmt" => cmd_fmt(&args[2..]),
         "repl" => cmd_repl(&args[2..]),
         "test" => cmd_test(&args[2..]),
+        "decompile" => cmd_decompile(&args[2..]),
         "lsp" => rython::lsp::run_lsp(),
         _ => cmd_transpile(&args[1..]),
     }

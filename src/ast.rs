@@ -26,6 +26,7 @@ pub enum Expr {
     DictComp(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>, Vec<Box<Expr>>),
     Generator(Box<Expr>, Box<Expr>, Box<Expr>, Vec<Box<Expr>>),
     Starred(Box<Expr>),
+    NamedExpr(Box<Expr>, Box<Expr>),
     Yield(Option<Box<Expr>>),
     Await(Box<Expr>),
     Ellipsis,

@@ -159,6 +159,47 @@ impl Value {
         }
     }
 
+    // --- Context manager protocol (__enter__ / __exit__) ---
+    /// `__enter__()` — called when entering a `with` block.
+    /// Dict returns self; Ptr dispatches to attribute; default returns self.
+    pub fn __enter__(&self) -> Value {
+        match self {
+            Value::Dict(_) => {
+                // dict `__enter__` returns self
+                self.clone()
+            }
+            Value::Ptr(_) => {
+                // Custom Python class — try attribute dispatch
+                let attr = self.get_attr("__enter__");
+                if attr.is_none() {
+                    panic!("TypeError: '{}' object does not support the context manager protocol",
+                           self.type_name());
+                }
+                attr
+            }
+            _ => {
+                self.clone()
+            }
+        }
+    }
+
+    /// `__exit__(exc_type, exc_val, exc_tb)` — called when leaving a `with` block.
+    /// Returns `false` to not suppress exceptions by default.
+    pub fn __exit__(&self, _exc_type: Value, _exc_val: Value, _exc_tb: Value) -> Value {
+        match self {
+            Value::Ptr(_) => {
+                // Custom Python class — try attribute dispatch
+                let _attr = self.get_attr("__exit__");
+                Value::Bool(false)
+            }
+            _ => Value::Bool(false),
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, Value::None)
+    }
+
     pub fn to_list(&self) -> Vec<Value> {
         match self {
             Value::List(items) => items.clone(),
@@ -257,6 +298,22 @@ impl Value {
                 Value::List(result)
             }
             _ => Value::None,
+        }
+    }
+
+    pub fn set_item(&mut self, idx: &Value, val: Value) {
+        match (self, idx) {
+            (Value::List(items), Value::Int(i)) => {
+                let i = if *i < 0 { items.len() as i64 + *i } else { *i } as usize;
+                if i < items.len() {
+                    items[i] = val;
+                }
+            }
+            (Value::Dict(d), _) => {
+                let key = format!("{}", idx);
+                d.insert(key, val);
+            }
+            _ => {}
         }
     }
 
@@ -364,6 +421,7 @@ impl Value {
     pub fn bitor(&self, other: &Value) -> Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Value::Int(a | b),
+            (Value::Bool(a), Value::Bool(b)) => Value::Bool(*a || *b),
             (Value::Set(a), Value::Set(b)) => {
                 let mut result = a.clone();
                 for item in b {
@@ -387,6 +445,9 @@ impl Value {
     pub fn bitand(&self, other: &Value) -> Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Value::Int(a & b),
+            (Value::Bool(a), Value::Bool(b)) => Value::Bool(*a && *b),
+            (Value::Bool(a), Value::Int(b)) => Value::Bool(*a && *b != 0),
+            (Value::Int(a), Value::Bool(b)) => Value::Bool(*a != 0 && *b),
             _ => panic!("TypeError: unsupported operand type(s) for &"),
         }
     }

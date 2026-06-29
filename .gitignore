@@ -1,8 +1,6 @@
 /target
 /rython_packages/
-examples/*.rs
-!examples/*.py
-examples/**/app
+.rython_cache/
 .DS_Store
 __pycache__/
 *.pyc
@@ -12,5 +10,9 @@ __pycache__/
 *.log
 *.o
 *.so
-app
-app.rs
+/bench
+
+# test/ build artifacts
+test/*.rs
+test/*/app
+test/gui/app

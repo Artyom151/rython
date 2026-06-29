@@ -43,10 +43,16 @@
 - [x] rython test
 - [x] LSP (автодополнение, hover, диагностика)
 
-## Фаза 5: Оптимизация
-- [ ] Типизация: убрать Value где тип известен
+## Фаза 5: Оптимизация (в процессе)
+- [x] Система типов в транспиляторе (Type enum, infer_type, type_map)
+- [ ] Типизация: убрать Value где тип известен (генерация Rust-типов, частично)
 - [ ] JIT (через LLVM или libgccjit)
 - [ ] AOT в нативный код без Rust
+
+## Фаза 6: Динамическое выполнение
+- [x] exec() — выполнение Python-кода (compile-time для строк, runtime через python3)
+- [x] eval() — вычисление выражений
+- [x] exec_runtime / eval_runtime в stdlib
 
 ## Структура
 ```
@@ -54,9 +60,8 @@ rython/
 ├── src/              # Ядро (Rust)
 │   ├── wrappers/     # C/C++ wrapper'ы
 │   └── ...
-├── examples/         # Примеры
-│   └── gui/          # PyQt6
+├── test/             # Тесты и демо (аналог src/test/ в Java)
+│   └── gui/          # PyQt6 GUI
 ├── scripts/          # Скрипты
-├── docs/             # Документация
-└── tests/            # Тесты
+└── docs/             # Документация
 ```
