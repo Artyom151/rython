@@ -1,7 +1,7 @@
 use std::env;
 use std::fs;
 use std::io::{self, Write, BufRead};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 fn compile_rust(rust_source: &str, output_path: &str, verbose: bool) -> Result<(), String> {
@@ -126,11 +126,39 @@ fn compile_rust(rust_source: &str, output_path: &str, verbose: bool) -> Result<(
 }
 
 fn run_with_python3(filename: &str) {
-    let status = Command::new("python3")
-        .arg(filename)
+    let cwd = std::env::current_dir().ok();
+    let mut cmd = Command::new("python3");
+    cmd.arg(filename)
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .status();
+        .stderr(std::process::Stdio::inherit());
+    if let Some(dir) = cwd {
+        let pkg_dir = dir.join("rython_packages");
+        let mut paths = Vec::new();
+        if pkg_dir.exists() {
+            paths.push(pkg_dir.to_string_lossy().to_string());
+            if let Ok(entries) = fs::read_dir(&pkg_dir) {
+                for entry in entries.flatten() {
+                    if entry.file_type().ok().map(|t| t.is_dir()).unwrap_or(false) {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if !name.starts_with('.') {
+                            let pkg_path = entry.path();
+                            paths.push(pkg_path.to_string_lossy().to_string());
+                            // Also add src/ subdirectory for packages with src/ layout
+                            let src_path = pkg_path.join("src");
+                            if src_path.is_dir() {
+                                paths.push(src_path.to_string_lossy().to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !paths.is_empty() {
+            let pythonpath = paths.join(":");
+            cmd.env("PYTHONPATH", &pythonpath);
+        }
+    }
+    let status = cmd.status();
 
     match status {
         Ok(s) if s.success() => {}
@@ -204,12 +232,86 @@ fn find_module_source(module_name: &str, base_dir: &Path) -> Option<String> {
             return Some(s);
         }
     }
+    // Search in rython_packages/<pkg>/<module>/ for mod.rs (pre-transpiled)
+    if let Ok(entries) = fs::read_dir(base_dir.join("rython_packages")) {
+        for entry in entries.flatten() {
+            if entry.file_type().ok().map(|t| t.is_dir()).unwrap_or(false) {
+                let pkg_dir = entry.path();
+                let mod_rs = pkg_dir.join(module_name).join("mod.rs");
+                if let Ok(s) = fs::read_to_string(&mod_rs) {
+                    return Some(s);
+                }
+            }
+        }
+    }
     None
+}
+
+fn find_package_rust_module(module_name: &str, base_dir: &Path) -> Option<(String, PathBuf)> {
+    let packages_dir = base_dir.join("rython_packages");
+    if !packages_dir.exists() {
+        return None;
+    }
+    for entry in fs::read_dir(&packages_dir).ok()? {
+        let entry = entry.ok()?;
+        if !entry.file_type().ok()?.is_dir() {
+            continue;
+        }
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let pkg_dir = entry.path();
+        // Check <pkg>/<module>/mod.rs and <pkg>/src/<module>/mod.rs
+        for sub in &["", "src"] {
+            let mod_rs = pkg_dir.join(sub).join(module_name).join("mod.rs");
+            if let Ok(source) = fs::read_to_string(&mod_rs) {
+                return Some((source, mod_rs));
+            }
+        }
+    }
+    None
+}
+
+fn package_sub_modules(mod_path: &Path, _module_name: &str, _base_dir: &Path) -> String {
+    let mod_dir = match mod_path.parent() {
+        Some(d) => d,
+        None => return String::new(),
+    };
+    let mut out = String::new();
+    let dir_entries = match fs::read_dir(mod_dir) {
+        Ok(e) => e,
+        Err(_) => return out,
+    };
+    for entry in dir_entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') || name == "mod.rs" { continue; }
+        if name.ends_with(".rs") {
+            let stem = name.strip_suffix(".rs").unwrap();
+            out.push_str(&format!("#[path = \"{}\"]\npub mod {};\n",
+                mod_dir.join(&name).to_string_lossy().replace('\\', "/"), stem));
+        } else if entry.file_type().ok().map(|t| t.is_dir()).unwrap_or(false) {
+            let sub_mod_rs = mod_dir.join(&name).join("mod.rs");
+            if sub_mod_rs.exists() {
+                out.push_str(&format!("#[path = \"{}\"]\npub mod {};\n",
+                    sub_mod_rs.to_string_lossy().replace('\\', "/"), name));
+                out.push_str(&package_sub_modules(&sub_mod_rs, &name, _base_dir));
+            }
+        }
+    }
+    out
 }
 
 fn transpile_module(module_name: &str, base_dir: &Path, verbose: bool) -> String {
     let parts: Vec<&str> = module_name.split('.').collect();
     let top_module = parts[0];
+
+    // Check for pre-transpiled Rust module in packages
+    if let Some((_, mod_path)) = find_package_rust_module(module_name, base_dir) {
+        let abs_path = mod_path.to_string_lossy().replace('\\', "/");
+        let sub_modules = package_sub_modules(&mod_path, module_name, base_dir);
+        return format!("#[path = \"{}\"]\npub mod {};\n{}", abs_path, top_module, sub_modules);
+    }
+
     let source = match find_module_source(module_name, base_dir) {
         Some(s) => s,
         None => return format!("pub mod {} {{}}\n", top_module),
@@ -373,7 +475,11 @@ fn cmd_transpile(args: &[String]) {
 
     match compile_rust(&full_source, &binary_path, verbose) {
         Ok(_) => if verbose { eprintln!("Compiled: {}", binary_path); }
-        Err(e) => { eprintln!("Compile error:\n{}", e); exit(1); }
+        Err(e) => {
+            if verbose { eprintln!("Compile error, falling back to python3:\n{}", e); }
+            run_with_python3(filename);
+            return;
+        }
     }
 
     if !args.iter().any(|a| a == "--output") || args.iter().any(|a| a == "--run") {
