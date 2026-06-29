@@ -1,5 +1,25 @@
 # Changelog
 
+## [v0.1.2] - 2026-06-29
+
+### Added
+- **rip install (no args)** — install dependencies from `rython.json` manifest
+- **rip add \<package\>** — install package(s) and save to `rython.json`
+- **rip build \<file.py\>** — compile project to standalone binary with `rustc -O`
+- **Parallel package installation** — up to 4 worker threads install packages concurrently with shared dependency graph
+- **Wheel fallback** — when sdist has no `.py` files, automatically download and install `.whl` for C-extensions (pydantic-core, multidict, etc.)
+- **`.pyc` cache** — after installation, compile all `.py` files to `__pycache__/*.pyc` for 2-3× faster startup
+- **Network retry** — curl with `--retry 2 --connect-timeout 15` and exponential backoff (400ms, 800ms, 1200ms) for PyPI 500 errors
+- **Manifest persistence** — `rython.json` stores dependencies; `rip uninstall` removes from manifest
+
+### Changed
+- **`install_package` → `install_parallel`** — batch install now uses thread pool instead of sequential recursion
+- **`fetch_url` / `fetch_bytes`** — added retry loop with delay instead of single curl attempt
+
+### Fixed
+- **C-extension ModuleNotFoundError** — wheel fallback resolves native extensions that sdist cannot provide
+- **Duplicate dependency resolution** — shared `Arc<Mutex<HashSet>>` prevents resolving same package twice in parallel installs
+
 ## [v0.1.1] - 2026-06-29
 
 ### Added

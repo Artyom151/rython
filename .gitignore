@@ -14,5 +14,8 @@ __pycache__/
 
 # test/ build artifacts
 test/*.rs
-test/*/app
+test/*.rso
 test/gui/app
+
+# checks/ test sandbox
+/checks/
